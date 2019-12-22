@@ -1,8 +1,7 @@
 // SimpleServer.cpp
 //
 
-#include <iostream>
-
+#include <stdio.h>
 #include <winsock2.h>
 
 int main()
@@ -51,13 +50,11 @@ int main()
         fgets(msg, sizeof(msg), stdin);
         if (strcmp(msg, "exit") == 0)
             break;
-
         send(client, msg, strlen(msg), 0);
     }
 
     closesocket(client);
     closesocket(listener);
-
     WSACleanup();
 
     return 0;
