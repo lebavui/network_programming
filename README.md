@@ -1,4 +1,6 @@
 # network_programming_tutorial
 Các ví dụ network programming
 
-VD1: Create simple server, client
+1. SimpleClient
+	+ Ứng dụng client đơn giản kết nối server được tạo bởi netcat
+	+ Client nhận dữ liệu từ server và in ra màn hình console
