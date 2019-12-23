@@ -8,4 +8,6 @@ Các ví dụ network programming
 	+ Ứng dụng http client, kết nối đến website
 	+ Thực hiện phân giải tên miền
 	+ Gửi lệnh GET và hiển thị kết quả trả về
-	
+3. SimpleServer
+	+ Ứng dụng server đơn giản chấp nhận 1 client
+	+ Server đọc dữ liệu từ bàn phím và gửi cho client
