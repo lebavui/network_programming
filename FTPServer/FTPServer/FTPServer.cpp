@@ -2,23 +2,33 @@
 #include <time.h>
 #include <winsock2.h>
 
+// Dinh nghia cau truc du lieu de luu thong tin can thiet cho moi client
 typedef struct {
-	SOCKET controlSocket;
-	SOCKET dataSocket;
-	int dataPort;
-	char rootDir[64];
-	char curDir[256];
+	char username[32];
+	char password[32];
 
-	char lastCommand[8];
-	char lastCommandParams[64];
+	SOCKET controlSocket;		// Ket noi de nhan lenh va tra ve phan hoi
+	SOCKET dataSocket;			// Ket noi de truyen nhan du lieu
+	int dataPort;				// Cong ket noi o che do Passive
+	char rootDir[64];			// Thu muc goc user
+	char curDir[256];			// Thu muc hien tai
+
+	char curCommandParams[64];	// Tham so cua lenh hien tai
+
+	char prevCommand[8];		// Lenh truoc do
+	char prevCommandParams[64];	// Tham so cua lenh truoc do
 } CLIENT_INFO;
 
+// Khai bao prototype cac ham phuc vu luong
 DWORD WINAPI ClientThread(LPVOID);
-DWORD WINAPI DataThread(LPVOID);
+DWORD WINAPI ResponseListCommandThread(LPVOID);
+DWORD WINAPI ResponseDownloadCommandThread(LPVOID);
+DWORD WINAPI ResponseUploadCommandThread(LPVOID);
 
+// Khai bao cac ham tien ich
 void ProcessCommand(CLIENT_INFO*, char*);
 void ResponseCommand(CLIENT_INFO*, const char*);
-
+char* GetPasswordOfUser(char*);
 int GetPassiveDataPort(CLIENT_INFO*);
 SOCKET OpenDataConnection(int);
 
@@ -27,6 +37,7 @@ int main()
 	WSADATA wsa;
 	WSAStartup(MAKEWORD(2, 2), &wsa);
 
+	// Server cho o cong 2121
 	SOCKADDR_IN addr;
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -36,10 +47,11 @@ int main()
 	bind(listener, (SOCKADDR*)&addr, sizeof(addr));
 	listen(listener, 5);
 
+	// Chap nhan nhieu ket noi theo mo hinh da luong
 	while (1)
 	{
 		SOCKET client = accept(listener, NULL, NULL);
-		printf("New client accepted: %d\n", client);
+		printf("LOG: New client accepted: %d\n", client);
 		CreateThread(0, 0, ClientThread, &client, 0, 0);
 	}
 }
@@ -51,13 +63,17 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 	int ret;
 	int dataPort = 0;
 
+	// Tao du lieu cho moi client ket noi den server
 	CLIENT_INFO clientInfo;
 	clientInfo.controlSocket = client;
-	strcpy(clientInfo.rootDir, "C:/FTPServer/user1");
 	strcpy(clientInfo.curDir, "/");
+	strcpy(clientInfo.username, "");
+	strcpy(clientInfo.password, "");
 
+	// Gui thong diep hello den client
 	ResponseCommand(&clientInfo, "220 Service ready for new user.\n");
 
+	// Nhan lenh tu client
 	while (1)
 	{
 		ret = recv(client, buf, sizeof(buf), 0);
@@ -66,8 +82,9 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 		if (ret < sizeof(buf))
 			buf[ret] = 0;
 
-		printf("Received: %s\n", buf);
+		printf("LOG: Received command: %s\n", buf);
 
+		// Xu ly lenh
 		ProcessCommand(&clientInfo, buf);
 	}
 
@@ -100,9 +117,39 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 	// So sanh va xu ly cac lenh FTP
 
 	if (strcmp(cmd, "USER") == 0)
-		ResponseCommand(pClientInfo, "331 User name okay, need password.\n");
+	{
+		// Check username
+		char* pass;
+		pass = GetPasswordOfUser(params);
+		if (pass != 0)
+		{
+			strcpy(pClientInfo->username, params);
+			strcpy(pClientInfo->password, pass);
+			ResponseCommand(pClientInfo, "331 User name okay, need password.\n");
+		}
+		else
+			ResponseCommand(pClientInfo, "332 Need account for login.\n");
+	}		
 	else if (strcmp(cmd, "PASS") == 0)
-		ResponseCommand(pClientInfo, "230 User logged in, proceed.\n");
+	{
+		// Check previous command is USER
+		if (strcmp(pClientInfo->prevCommand, "USER") != 0)
+			ResponseCommand(pClientInfo, "503 Bad sequence of commands.\n");
+		else
+		{
+			// Check password
+			if (strncmp(pClientInfo->password, params, strlen(params)) == 0)
+			{
+				strcpy(pClientInfo->rootDir, "C:/FTPServer/");
+				strcat(pClientInfo->rootDir, pClientInfo->username);
+				ResponseCommand(pClientInfo, "230 User logged in, proceed.\n");
+			}
+			else
+			{
+				ResponseCommand(pClientInfo, "332 Need account for login.\n");
+			}
+		}
+	}		
 	else if (strcmp(cmd, "TYPE") == 0)
 		ResponseCommand(pClientInfo, "200 Command okay.\n");
 	else if (strcmp(cmd, "MODE") == 0)
@@ -112,7 +159,7 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 	else if (strcmp(cmd, "LIST") == 0)
 	{
 		ResponseCommand(pClientInfo, "150 File status okay; about to open data connection.\n");
-		CreateThread(0, 0, DataThread, pClientInfo, 0, 0);
+		CreateThread(0, 0, ResponseListCommandThread, pClientInfo, 0, 0);
 	}		
 	else if (strcmp(cmd, "PORT") == 0)
 		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
@@ -255,14 +302,14 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 		ResponseCommand(pClientInfo, "350 Requested file action pending further information.\n");
 	else if (strcmp(cmd, "RNTO") == 0)
 	{
-		if (strcmp(pClientInfo->lastCommand, "RNFR") == 0)
+		if (strcmp(pClientInfo->prevCommand, "RNFR") == 0)
 		{
 			char pathFrom[256];
 			strcpy(pathFrom, pClientInfo->rootDir);
 			strcat(pathFrom, pClientInfo->curDir);
 			if (strcmp(pClientInfo->curDir, "/") != 0)
 				strcat(pathFrom, "/");
-			strcat(pathFrom, pClientInfo->lastCommandParams);
+			strcat(pathFrom, pClientInfo->prevCommandParams);
 
 			char pathTo[256];
 			strcpy(pathTo, pClientInfo->rootDir);
@@ -287,9 +334,17 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 	else if (strcmp(cmd, "STRU") == 0)
 		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
 	else if (strcmp(cmd, "RETR") == 0)
-		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
+	{
+		ResponseCommand(pClientInfo, "150 File status okay; about to open data connection.\n");
+		strcpy(pClientInfo->curCommandParams, params);
+		CreateThread(0, 0, ResponseDownloadCommandThread, pClientInfo, 0, 0);
+	}
 	else if (strcmp(cmd, "STOR") == 0)
-		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
+	{
+		ResponseCommand(pClientInfo, "150 File status okay; about to open data connection.\n");
+		strcpy(pClientInfo->curCommandParams, params);
+		CreateThread(0, 0, ResponseUploadCommandThread, pClientInfo, 0, 0);
+	}
 	else if (strcmp(cmd, "NOOP") == 0)
 		ResponseCommand(pClientInfo, "200 Command okay.\n");
 	else if (strcmp(cmd, "QUIT") == 0)
@@ -300,8 +355,8 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 	else
 		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
 
-	strcpy(pClientInfo->lastCommand, cmd);
-	strcpy(pClientInfo->lastCommandParams, params);
+	strcpy(pClientInfo->prevCommand, cmd);
+	strcpy(pClientInfo->prevCommandParams, params);
 }
 
 void ResponseCommand(CLIENT_INFO* pClientInfo, const char* msg)
@@ -354,7 +409,7 @@ SOCKET OpenDataConnection(int dataPort)
 	return dataClient;
 }
 
-DWORD WINAPI DataThread(LPVOID lpParam)
+DWORD WINAPI ResponseListCommandThread(LPVOID lpParam)
 {
 	CLIENT_INFO* pClientInfo = (CLIENT_INFO*)lpParam;
 	SOCKET dataClient = OpenDataConnection(pClientInfo->dataPort);
@@ -409,4 +464,116 @@ DWORD WINAPI DataThread(LPVOID lpParam)
 
 	closesocket(dataClient);
 	return 0;
+}
+
+DWORD WINAPI ResponseDownloadCommandThread(LPVOID lpParam)
+{
+	CLIENT_INFO* pClientInfo = (CLIENT_INFO*)lpParam;
+	SOCKET dataClient = OpenDataConnection(pClientInfo->dataPort);
+
+	// Build full path of the requested file on server side
+	char path[256];
+	strcpy(path, pClientInfo->rootDir);
+	strcat(path, pClientInfo->curDir);
+	if (strcmp(pClientInfo->curDir, "/") != 0)
+		strcat(path, "/");
+	strcat(path, pClientInfo->curCommandParams);
+
+	// Read file and send via data connection
+	FILE* f = NULL;
+	fopen_s(&f, path, "rb");
+
+	if (f == 0)
+	{
+		// Cannot open file to read, send error response
+		ResponseCommand(pClientInfo, "550 Requested action not taken.File unavailable.\n");
+	}
+	else
+	{
+		char buf[1024];
+		int ret;
+		while (1)
+		{
+			ret = fread_s(buf, sizeof(buf), 1, sizeof(buf), f);
+			if (ret <= 0)
+				break;
+			send(dataClient, buf, ret, 0);
+		}
+		fclose(f);
+
+		ResponseCommand(pClientInfo, "226 Closing data connection.\n");
+	}
+
+	closesocket(dataClient);
+	return 0;
+}
+
+DWORD WINAPI ResponseUploadCommandThread(LPVOID lpParam)
+{
+	CLIENT_INFO* pClientInfo = (CLIENT_INFO*)lpParam;
+	SOCKET dataClient = OpenDataConnection(pClientInfo->dataPort);
+
+	// Build full path of the requested file on server side
+	char path[256];
+	strcpy(path, pClientInfo->rootDir);
+	strcat(path, pClientInfo->curDir);
+	if (strcmp(pClientInfo->curDir, "/") != 0)
+		strcat(path, "/");
+	strcat(path, pClientInfo->curCommandParams);
+
+	// Received data via data connection and save to file
+	FILE* f = NULL;
+	fopen_s(&f, path, "wb");
+
+	if (f == 0)
+	{
+		// Cannot open file to write, send error response
+		ResponseCommand(pClientInfo, "553 Requested action not taken. File unavailable.\n");
+	}
+	else
+	{
+		char buf[1024];
+		int ret;
+		while (1)
+		{
+			ret = recv(dataClient, buf, sizeof(buf), 0);
+			if (ret <= 0)
+				break;
+			fwrite(buf, 1, ret, f);
+		}
+		fclose(f);
+
+		ResponseCommand(pClientInfo, "226 Closing data connection.\n");
+	}
+
+	closesocket(dataClient);
+	return 0;
+}
+
+char* GetPasswordOfUser(char* username)
+{
+	FILE* f = NULL;
+	fopen_s(&f, "C:/FTPServer/users.txt", "r");
+	if (f == 0)
+		return 0;
+	else
+	{
+		int found = 0;
+		char buf[64];
+		while (!feof(f))
+		{
+			fgets(buf, sizeof(buf), f);
+			if (strncmp(buf, username, strlen(username)) == 0)
+			{
+				found = 1;
+				break;
+			}
+		}
+		fclose(f);
+
+		if (found)
+			return buf + strlen(username) + 1;
+		else
+			return 0;
+	}
 }
