@@ -94,6 +94,7 @@ DWORD WINAPI ClientThread(LPVOID lpParam)
 
 void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 {
+	// Tach phan command de xu ly
 	char cmd[16] = "";
 	int ret = sscanf(buf, "%s", cmd);
 	if (ret == 0)
@@ -104,7 +105,7 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 		if (islower(cmd[i]))
 			cmd[i] = toupper(cmd[i]);
 
-	// Tach param
+	// Tach phan tham so
 	char params[64];
 	int paramOffset = strlen(cmd) + 1;
 	int paramLength = strlen(buf) - strlen(cmd) - 3;
@@ -115,7 +116,6 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 	params[paramLength] = 0;
 
 	// So sanh va xu ly cac lenh FTP
-
 	if (strcmp(cmd, "USER") == 0)
 	{
 		// Check username
@@ -151,9 +151,26 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 		}
 	}		
 	else if (strcmp(cmd, "TYPE") == 0)
-		ResponseCommand(pClientInfo, "200 Command okay.\n");
+	{
+		if (strcmp(params, "A") == 0)
+			ResponseCommand(pClientInfo, "200 Command okay.\n");
+		else
+			ResponseCommand(pClientInfo, "504 Command not implemented for that parameter.\n");
+	}
 	else if (strcmp(cmd, "MODE") == 0)
-		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
+	{
+		if (strcmp(params, "S") == 0)
+			ResponseCommand(pClientInfo, "200 Command okay.\n");
+		else
+			ResponseCommand(pClientInfo, "504 Command not implemented for that parameter.\n");
+	}	
+	else if (strcmp(cmd, "STRU") == 0)
+	{
+		if (strcmp(params, "F") == 0)
+			ResponseCommand(pClientInfo, "200 Command okay.\n");
+		else
+			ResponseCommand(pClientInfo, "504 Command not implemented for that parameter.\n");
+	}
 	else if (strcmp(cmd, "PASV") == 0)
 		pClientInfo->dataPort = GetPassiveDataPort(pClientInfo);
 	else if (strcmp(cmd, "LIST") == 0)
@@ -331,8 +348,6 @@ void ProcessCommand(CLIENT_INFO* pClientInfo, char* buf)
 		else
 			ResponseCommand(pClientInfo, "503 Bad sequence of commands.\n");
 	}
-	else if (strcmp(cmd, "STRU") == 0)
-		ResponseCommand(pClientInfo, "502 Command not implemented.\n");
 	else if (strcmp(cmd, "RETR") == 0)
 	{
 		ResponseCommand(pClientInfo, "150 File status okay; about to open data connection.\n");
@@ -550,6 +565,9 @@ DWORD WINAPI ResponseUploadCommandThread(LPVOID lpParam)
 	return 0;
 }
 
+// Ham lay password cua username tu file du lieu
+// Tra ve buffer chua password neu tim thay
+// Tra ve 0 (NULL) neu khong tim thay hoac bi loi 
 char* GetPasswordOfUser(char* username)
 {
 	FILE* f = NULL;
@@ -575,5 +593,8 @@ char* GetPasswordOfUser(char* username)
 			return buf + strlen(username) + 1;
 		else
 			return 0;
+
+		 
+
 	}
 }
