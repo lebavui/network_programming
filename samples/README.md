@@ -1,5 +1,4 @@
-# network_programming_tutorial
-Các ví dụ network programming
+# Các ví dụ minh họa môn học
 
 1. SimpleClient
 	+ Ứng dụng client đơn giản kết nối server được tạo bởi netcat
