@@ -20,9 +20,9 @@
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
-    <ProjectGuid>{B91EC156-DF23-4594-99C3-1313B57172A2}</ProjectGuid>
+    <ProjectGuid>{0AB4EB7B-D411-4E2B-A5A5-FF1468825965}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
-    <RootNamespace>TestClient</RootNamespace>
+    <RootNamespace>MultiThreadEventSelectServer</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -147,7 +147,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="TestClient.cpp" />
+    <ClCompile Include="MultiThreadEventSelectServer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
