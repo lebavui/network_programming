@@ -24,9 +24,12 @@ typedef struct _PER_IO_DATA
 } PER_IO_DATA, * LPPER_IO_DATA;
 
 DWORD WINAPI ServerWorkerThread(LPVOID);
-void ProcessRequest(SOCKET, char*);
-void SendHeader(SOCKET, const char*);
-void SendFile(SOCKET, const char*);
+int ProcessRequest(SOCKET, char*);
+int SendHeader(SOCKET, const char*);
+int SendFile(SOCKET, const char*);
+int ProcessSignUp(char*);
+int CheckUsername(char*);
+int InsertUser(char*, char*, char*, char*);
 
 int main()
 {
@@ -125,7 +128,7 @@ DWORD WINAPI ServerWorkerThread(LPVOID lpParam)
 	}
 }
 
-void ProcessRequest(SOCKET client, char* req)
+int ProcessRequest(SOCKET client, char* req)
 {
 	char cmd[16];
 	char dir[256];
@@ -145,19 +148,34 @@ void ProcessRequest(SOCKET client, char* req)
 		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
 		SendFile(client, "signup.html");
 	}
+	else if (strcmp(cmd, "POST") == 0 && strcmp(dir, "/signup") == 0)
+	{
+		ProcessSignUp(req);
+
+		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
+		SendFile(client, "signup.html");
+	}
 	else if (strcmp(cmd, "GET") == 0 && strcmp(dir, "/signin") == 0)
 	{
 		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
 		SendFile(client, "signin.html");
 	}
+	else if (strcmp(cmd, "POST") == 0 && strcmp(dir, "/signin") == 0)
+	{
+		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
+		SendFile(client, "signin.html");
+	}
+
+	return 0;
 }
 
-void SendHeader(SOCKET client, const char* buf)
+int SendHeader(SOCKET client, const char* buf)
 {
 	send(client, buf, strlen(buf), 0);
+	return 0;
 }
 
-void SendFile(SOCKET client, const char* filename)
+int SendFile(SOCKET client, const char* filename)
 {
 	char buf[2048];
 	int ret;
@@ -178,4 +196,43 @@ void SendFile(SOCKET client, const char* filename)
 		send(client, buf, ret, 0);
 	}
 	fclose(f);
+
+	return 0;
+}
+
+int ProcessSignUp(char* req)
+{
+	char* crlf = strstr(req, "\r\n\r\n");
+	if (crlf == NULL)
+		return -1;
+
+	char key[16];
+	char value[64];
+
+	char* pItem = strtok(crlf + 4, "&");
+	while (pItem != NULL)
+	{
+		char* pEqual = strstr(pItem, "=");
+		memcpy(key, pItem, pEqual - pItem);
+		memcpy(value, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+
+		if (strcmp(key, "uname") == 0)
+		{
+			// Check username is available to add
+		}
+
+		pItem = strtok(NULL, "&");
+	}
+
+	return 0;
+}
+
+int CheckUsername(char*)
+{
+
+}
+
+int InsertUser(char*, char*, char*, char*)
+{
+
 }
