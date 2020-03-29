@@ -136,11 +136,11 @@ int ProcessRequest(SOCKET client, char* req)
 	int ret = sscanf(req, "%s %s", cmd, dir);
 	if (ret != 2)
 	{
-		return;
+		return -1;
 	}
 	if (strcmp(cmd, "GET") != 0 && strcmp(cmd, "POST") != 0)
 	{
-		return;
+		return -1;
 	}
 
 	if (strcmp(cmd, "GET") == 0 && strcmp(dir, "/signup") == 0)
@@ -207,32 +207,67 @@ int ProcessSignUp(char* req)
 		return -1;
 
 	char key[16];
-	char value[64];
+	char username[32], fullname[32], email[64], password[64];
 
+	int check = 0;
 	char* pItem = strtok(crlf + 4, "&");
-	while (pItem != NULL)
+	
+	char* pEqual = strstr(pItem, "=");
+	memcpy(key, pItem, pEqual - pItem);
+	memcpy(username, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+
+	// Check username is available to add
+	if (CheckUsername(username))
 	{
-		char* pEqual = strstr(pItem, "=");
-		memcpy(key, pItem, pEqual - pItem);
-		memcpy(value, pEqual + 1, strlen(pItem) - strlen(key) + 1);
-
-		if (strcmp(key, "uname") == 0)
-		{
-			// Check username is available to add
-		}
-
-		pItem = strtok(NULL, "&");
+		return -1;
 	}
+
+	pItem = strtok(NULL, "&");
+	pEqual = strstr(pItem, "=");
+	memcpy(key, pItem, pEqual - pItem);
+	memcpy(fullname, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+
+	pItem = strtok(NULL, "&");
+	pEqual = strstr(pItem, "=");
+	memcpy(key, pItem, pEqual - pItem);
+	memcpy(email, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+
+	pItem = strtok(NULL, "&");
+	pEqual = strstr(pItem, "=");
+	memcpy(key, pItem, pEqual - pItem);
+	memcpy(password, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+
+	InsertUser(username, fullname, email, password);
 
 	return 0;
 }
 
-int CheckUsername(char*)
+int CheckUsername(char* username)
 {
-
+	FILE* f = fopen("C:\\Test\\users.txt", "r");
+	if (f == NULL)
+		return -1;
+	char line[256];
+	int check = 0;
+	while (1)
+	{
+		fgets(line, sizeof(line), f);
+		if (strncmp(line, username, strlen(username)) == 0)
+		{
+			check = -1;
+			break;
+		}
+	}
+	fclose(f);
+	return check;
 }
 
-int InsertUser(char*, char*, char*, char*)
+int InsertUser(char* username, char* fullname, char* email, char* password)
 {
-
+	FILE* f = fopen("C:\\Test\\users.txt", "a");
+	if (f == NULL)
+		return -1;
+	fprintf(f, "%s\t%s\t%s\t%s\r\n", username, fullname, email, password);
+	fclose(f);
+	return 0;
 }
