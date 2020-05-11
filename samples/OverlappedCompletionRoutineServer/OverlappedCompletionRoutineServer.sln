@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.29709.97
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "OverlappedCompletionRoutineServer", "OverlappedCompletionRoutineServer\OverlappedCompletionRoutineServer.vcxproj", "{0DE2A570-DC66-482F-A112-E67A055497DC}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "MultiThreadOverlappedCompletionRoutineServer", "MultiThreadOverlappedCompletionRoutineServer\MultiThreadOverlappedCompletionRoutineServer.vcxproj", "{23196133-53ED-4E9D-B7FE-A82AD92F9541}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -21,6 +23,14 @@ Global
 		{0DE2A570-DC66-482F-A112-E67A055497DC}.Release|x64.Build.0 = Release|x64
 		{0DE2A570-DC66-482F-A112-E67A055497DC}.Release|x86.ActiveCfg = Release|Win32
 		{0DE2A570-DC66-482F-A112-E67A055497DC}.Release|x86.Build.0 = Release|Win32
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Debug|x64.ActiveCfg = Debug|x64
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Debug|x64.Build.0 = Debug|x64
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Debug|x86.ActiveCfg = Debug|Win32
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Debug|x86.Build.0 = Debug|Win32
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Release|x64.ActiveCfg = Release|x64
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Release|x64.Build.0 = Release|x64
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Release|x86.ActiveCfg = Release|Win32
+		{23196133-53ED-4E9D-B7FE-A82AD92F9541}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

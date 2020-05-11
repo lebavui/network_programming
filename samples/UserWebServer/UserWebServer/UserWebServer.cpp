@@ -30,6 +30,9 @@ int SendFile(SOCKET, const char*);
 int ProcessSignUp(char*);
 int CheckUsername(char*);
 int InsertUser(char*, char*, char*, char*);
+int ProcessSignIn(char*);
+int CheckUsernamePassword(char*, char*);
+int SendUserData(SOCKET);
 
 int main()
 {
@@ -150,10 +153,15 @@ int ProcessRequest(SOCKET client, char* req)
 	}
 	else if (strcmp(cmd, "POST") == 0 && strcmp(dir, "/signup") == 0)
 	{
-		ProcessSignUp(req);
-
-		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
-		SendFile(client, "signup.html");
+		if (ProcessSignUp(req))
+		{
+			SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
+			SendFile(client, "signup_error.html");
+		}
+		else
+		{
+			SendHeader(client, "HTTP/1.1 303 Sign up success\r\nLocation: /signin\r\n\r\n");
+		}
 	}
 	else if (strcmp(cmd, "GET") == 0 && strcmp(dir, "/signin") == 0)
 	{
@@ -162,8 +170,20 @@ int ProcessRequest(SOCKET client, char* req)
 	}
 	else if (strcmp(cmd, "POST") == 0 && strcmp(dir, "/signin") == 0)
 	{
+		if (ProcessSignIn(req))
+		{
+			SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
+			SendFile(client, "signin_error.html");
+		}
+		else
+		{
+			SendHeader(client, "HTTP/1.1 303 Sign in success\r\nLocation: /users\r\n\r\n");
+		}
+	}
+	else if (strcmp(cmd, "GET") == 0 && strcmp(dir, "/users") == 0)
+	{
 		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
-		SendFile(client, "signin.html");
+		SendUserData(client);
 	}
 
 	return 0;
@@ -200,21 +220,54 @@ int SendFile(SOCKET client, const char* filename)
 	return 0;
 }
 
+int ProcessSignIn(char* req)
+{
+	char* crlf = strstr(req, "\r\n\r\n");
+	if (crlf == NULL)
+		return -1;
+
+	char* username, * password;
+
+	char* pItem = strtok(crlf + 4, "&");
+	username = strstr(pItem, "=") + 1;
+	pItem = strtok(NULL, "&");
+	password = strstr(pItem, "=") + 1;
+
+	return CheckUsernamePassword(username, password);
+}
+
+int CheckUsernamePassword(char* username, char* password)
+{
+	FILE* f = fopen("C:\\Test\\users.txt", "r");
+	if (f == NULL)
+		return -2;
+	char line[256], uname[16], fname[32], email[64], pwd[64];
+	int check = -1, ret;
+	while (!feof(f))
+	{
+		fgets(line, sizeof(line), f);
+		ret = sscanf(line, "%s %s %s %s", uname, fname, email, pwd);
+		if (ret != 4) continue;
+		if (strcmp(username, uname) == 0 && strcmp(password, pwd) == 0)
+		{
+			check = 0;
+			break;
+		}
+	}
+	fclose(f);
+	return check;
+}
+
 int ProcessSignUp(char* req)
 {
 	char* crlf = strstr(req, "\r\n\r\n");
 	if (crlf == NULL)
 		return -1;
 
-	char key[16];
-	char username[32], fullname[32], email[64], password[64];
+	char* username, * fullname, * email, * password;
 
-	int check = 0;
 	char* pItem = strtok(crlf + 4, "&");
-	
-	char* pEqual = strstr(pItem, "=");
-	memcpy(key, pItem, pEqual - pItem);
-	memcpy(username, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+	username = strstr(pItem, "=") + 1;
 
 	// Check username is available to add
 	if (CheckUsername(username))
@@ -223,19 +276,13 @@ int ProcessSignUp(char* req)
 	}
 
 	pItem = strtok(NULL, "&");
-	pEqual = strstr(pItem, "=");
-	memcpy(key, pItem, pEqual - pItem);
-	memcpy(fullname, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+	fullname = strstr(pItem, "=") + 1;
 
 	pItem = strtok(NULL, "&");
-	pEqual = strstr(pItem, "=");
-	memcpy(key, pItem, pEqual - pItem);
-	memcpy(email, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+	email = strstr(pItem, "=") + 1;
 
 	pItem = strtok(NULL, "&");
-	pEqual = strstr(pItem, "=");
-	memcpy(key, pItem, pEqual - pItem);
-	memcpy(password, pEqual + 1, strlen(pItem) - strlen(key) + 1);
+	password = strstr(pItem, "=") + 1;
 
 	InsertUser(username, fullname, email, password);
 
@@ -249,7 +296,7 @@ int CheckUsername(char* username)
 		return -1;
 	char line[256];
 	int check = 0;
-	while (1)
+	while (!feof(f))
 	{
 		fgets(line, sizeof(line), f);
 		if (strncmp(line, username, strlen(username)) == 0)
@@ -267,7 +314,56 @@ int InsertUser(char* username, char* fullname, char* email, char* password)
 	FILE* f = fopen("C:\\Test\\users.txt", "a");
 	if (f == NULL)
 		return -1;
-	fprintf(f, "%s\t%s\t%s\t%s\r\n", username, fullname, email, password);
+	fprintf(f, "%s\t%s\t%s\t%s\n", username, fullname, email, password);
 	fclose(f);
+	return 0;
+}
+
+int SendUserData(SOCKET client)
+{
+	char buf[1024];
+	char uname[16], fname[32], email[64];
+
+	char line[256];
+	char fbuf[256];
+	GetModuleFileNameA(NULL, fbuf, sizeof(fbuf));
+	int pos = strlen(fbuf) - 1;
+	while (fbuf[pos] != '\\') pos--;
+	fbuf[pos + 1] = 0;
+	strcat(fbuf, "users.html");
+
+	int ret;
+
+	FILE* f = fopen(fbuf, "r");
+	while (!feof(f))
+	{
+		memset(line, 0, sizeof(line));
+		fgets(line, sizeof(line), f);
+		if (strstr(line, "[user_list]") != NULL)
+		{
+			// Send user's data
+			FILE* f1 = fopen("c:\\test\\users.txt", "r");
+			while (!feof(f1))
+			{
+				memset(buf, 0, sizeof(buf));
+				fgets(buf, sizeof(buf), f1);
+				ret = sscanf(buf, "%s %s %s", uname, fname, email);
+				if (ret != 3)
+					continue;
+
+				sprintf(buf, "<tr><td>%s</td><td>%s</td><td>%s</td>", uname, fname, email);
+				send(client, buf, strlen(buf), 0);
+				sprintf(buf, "<td><button type=\"button\" class=\"btn\"><i class=\"fas fa-edit\"></i></button></td>");
+				send(client, buf, strlen(buf), 0);
+				sprintf(buf, "<td><button type=\"button\" class=\"btn\"><i class=\"far fa-trash-alt\"></i></button></td></tr>");
+				send(client, buf, strlen(buf), 0);
+			}
+			fclose(f1);
+		}
+		else
+			send(client, line, strlen(line), 0);
+	}
+	fclose(f);
+
 	return 0;
 }
