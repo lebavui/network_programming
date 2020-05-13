@@ -69,7 +69,7 @@ int main()
 		memcpy(&pHandle->ClientAddr, &clientAddr, clientAddrLen);
 
 		// Gan socket voi doi tuong CompletionPort
-		CreateIoCompletionPort((HANDLE)client, completionPort, (DWORD)pHandle, 0);
+		CreateIoCompletionPort((HANDLE)client, completionPort, (ULONG_PTR)pHandle, 0);
 		
 		// Cap phat bo nho cho cau truc du lieu vao ra overlapped
 		PER_IO_DATA* pIO = (LPPER_IO_DATA)GlobalAlloc(GPTR, sizeof(PER_IO_DATA));
@@ -96,7 +96,7 @@ DWORD WINAPI ServerWorkerThread(LPVOID lpParam)
 
 	while (TRUE)
 	{	 // Cho den khi 1 yeu cau vao ra hoan tat
-		bool ret = GetQueuedCompletionStatus(completionPort, &bytesReceived, (LPDWORD)&pHandle, (LPOVERLAPPED*)&pIO, INFINITE);
+		bool ret = GetQueuedCompletionStatus(completionPort, &bytesReceived, (PULONG_PTR)&pHandle, (LPOVERLAPPED*)&pIO, INFINITE);
 		if (bytesReceived == 0) // Neu ket noi bi ngat
 		{
 			closesocket(pHandle->Socket);	// Ngat ket noi
