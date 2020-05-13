@@ -3,6 +3,8 @@
 
 #include <stdio.h>
 #include <winsock2.h>
+#include <time.h>
+#include <openssl\md5.h>
 
 #pragma comment(lib, "ws2_32")
 #pragma warning(disable:4996)
@@ -12,7 +14,7 @@
 typedef struct _PER_HANDLE_DATA
 {
 	SOCKET Socket;
-	SOCKADDR_STORAGE ClientAddr;
+	SOCKADDR_IN ClientAddr;
 } PER_HANDLE_DATA, * LPPER_HANDLE_DATA;
 
 // Khai bao cau truc du lieu overlapped
@@ -30,9 +32,16 @@ int SendFile(SOCKET, const char*);
 int ProcessSignUp(char*);
 int CheckUsername(char*);
 int InsertUser(char*, char*, char*, char*);
-int ProcessSignIn(char*);
+int ProcessSignIn(char*, char*);
 int CheckUsernamePassword(char*, char*);
 int SendUserData(SOCKET);
+int ShowEditingUser(SOCKET, char*);
+int UpdateUserInfo(char*);
+int UpdateUser(char*, char*, char*, char*);
+int DeleteUser(char*);
+
+char* SetCookie(char*, char*);
+char* CheckCookie(char*);
 
 int main()
 {
@@ -170,14 +179,17 @@ int ProcessRequest(SOCKET client, char* req)
 	}
 	else if (strcmp(cmd, "POST") == 0 && strcmp(dir, "/signin") == 0)
 	{
-		if (ProcessSignIn(req))
+		char cookie[64];
+		if (ProcessSignIn(req, cookie))
 		{
 			SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
 			SendFile(client, "signin_error.html");
 		}
 		else
 		{
-			SendHeader(client, "HTTP/1.1 303 Sign in success\r\nLocation: /users\r\n\r\n");
+			char response[256];
+			sprintf(response, "HTTP/1.1 303 Sign in success\r\nSet-Cookie: token=%s\r\nLocation: /users\r\n\r\n", cookie);
+			SendHeader(client, response);
 		}
 	}
 	else if (strcmp(cmd, "GET") == 0 && strcmp(dir, "/users") == 0)
@@ -185,7 +197,48 @@ int ProcessRequest(SOCKET client, char* req)
 		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
 		SendUserData(client);
 	}
+	else if (strcmp(cmd, "GET") == 0 && strncmp(dir, "/edit?", 6) == 0)
+	{
+		SendHeader(client, "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n");
 
+		// Get query string after ?
+		char* queryString = dir + 6;
+
+		// Split params
+		char* firstItem = strtok(queryString, "&");
+		
+		// Get username param
+		char* key = strtok(firstItem, "=");
+		char* value = strtok(NULL, "=");
+
+		if (strcmp(key, "username") == 0)
+			ShowEditingUser(client, value);
+	}
+	else if (strcmp(cmd, "POST") == 0 && strcmp(dir, "/edit") == 0)
+	{
+		UpdateUserInfo(req);
+		SendHeader(client, "HTTP/1.1 303 Update success\r\nLocation: /users\r\n\r\n");
+	}
+	else if (strcmp(cmd, "GET") == 0 && strncmp(dir, "/delete?", 8) == 0)
+	{
+		// Get query string after ?
+		char* queryString = dir + 8;
+
+		// Split params
+		char* firstItem = strtok(queryString, "&");
+
+		// Get username param
+		char* key = strtok(firstItem, "=");
+		char* value = strtok(NULL, "=");
+
+		if (strcmp(key, "username") == 0)
+		{
+			DeleteUser(value);
+			SendHeader(client, "HTTP/1.1 303 Delete success\r\nLocation: /users\r\n\r\n");
+		}
+	}
+	else
+		SendHeader(client, "HTTP/1.1 400 Bad request\r\n\r\n");
 	return 0;
 }
 
@@ -200,14 +253,10 @@ int SendFile(SOCKET client, const char* filename)
 	char buf[2048];
 	int ret;
 
-	char fbuf[1024];
-	GetModuleFileNameA(NULL, fbuf, sizeof(fbuf));
-	int pos = strlen(fbuf) - 1;
-	while (fbuf[pos] != '\\') pos--;
-	fbuf[pos + 1] = 0;
-	strcat(fbuf, filename);
+	char path[1024] = "c:\\test\\web-content\\";
+	strcat(path, filename);
 
-	FILE* f = fopen(fbuf, "rb");
+	FILE* f = fopen(path, "rb");
 	while (1)
 	{
 		ret = fread(buf, 1, sizeof(buf), f);
@@ -220,7 +269,7 @@ int SendFile(SOCKET client, const char* filename)
 	return 0;
 }
 
-int ProcessSignIn(char* req)
+int ProcessSignIn(char* req, char* cookie)
 {
 	char* crlf = strstr(req, "\r\n\r\n");
 	if (crlf == NULL)
@@ -233,7 +282,13 @@ int ProcessSignIn(char* req)
 	pItem = strtok(NULL, "&");
 	password = strstr(pItem, "=") + 1;
 
-	return CheckUsernamePassword(username, password);
+	if (CheckUsernamePassword(username, password) == 0)
+	{
+		SetCookie(username, cookie);
+		return 0;
+	}
+	else
+		return -1;
 }
 
 int CheckUsernamePassword(char* username, char* password)
@@ -319,22 +374,80 @@ int InsertUser(char* username, char* fullname, char* email, char* password)
 	return 0;
 }
 
+int UpdateUser(char* username, char* fullname, char* email, char* password)
+{
+	char line[256];
+	char c_username[16], c_fullname[32], c_email[64], c_password[32];
+	int ret;
+
+	FILE* f1 = fopen("c:\\test\\users.txt", "r");
+	FILE* f2 = fopen("c:\\test\\tmp_users.txt", "w");
+
+	while (!feof(f1))
+	{
+		memset(line, 0, sizeof(line));
+		fgets(line, sizeof(line), f1);
+		ret = sscanf(line, "%s %s %s %s", c_username, c_fullname, c_email, c_password);
+		if (ret != 4)
+			continue;
+
+		if (strcmp(c_username, username) == 0)
+			fprintf(f2, "%s %s %s %s\n", c_username, fullname, email, password);
+		else
+			fprintf(f2, "%s %s %s %s\n", c_username, c_fullname, c_email, c_password);
+	}
+	
+	fclose(f1);
+	fclose(f2);
+
+	remove("c:\\test\\users.txt");
+	rename("c:\\test\\tmp_users.txt", "c:\\test\\users.txt");
+
+	return 0;
+}
+
+int DeleteUser(char* username)
+{
+	char line[256];
+	char c_username[16], c_fullname[32], c_email[64], c_password[32];
+	int ret;
+
+	FILE* f1 = fopen("c:\\test\\users.txt", "r");
+	FILE* f2 = fopen("c:\\test\\tmp_users.txt", "w");
+
+	while (!feof(f1))
+	{
+		memset(line, 0, sizeof(line));
+		fgets(line, sizeof(line), f1);
+		ret = sscanf(line, "%s %s %s %s", c_username, c_fullname, c_email, c_password);
+		if (ret != 4)
+			continue;
+
+		if (strcmp(c_username, username) != 0)
+			fprintf(f2, "%s %s %s %s\n", c_username, c_fullname, c_email, c_password);
+	}
+
+	fclose(f1);
+	fclose(f2);
+
+	remove("c:\\test\\users.txt");
+	rename("c:\\test\\tmp_users.txt", "c:\\test\\users.txt");
+
+	return 0;
+}
+
 int SendUserData(SOCKET client)
 {
 	char buf[1024];
 	char uname[16], fname[32], email[64];
 
 	char line[256];
-	char fbuf[256];
-	GetModuleFileNameA(NULL, fbuf, sizeof(fbuf));
-	int pos = strlen(fbuf) - 1;
-	while (fbuf[pos] != '\\') pos--;
-	fbuf[pos + 1] = 0;
-	strcat(fbuf, "users.html");
+	char path[1024] = "c:\\test\\web-content\\";
+	strcat(path, "users.html");
 
 	int ret;
 
-	FILE* f = fopen(fbuf, "r");
+	FILE* f = fopen(path, "r");
 	while (!feof(f))
 	{
 		memset(line, 0, sizeof(line));
@@ -353,9 +466,9 @@ int SendUserData(SOCKET client)
 
 				sprintf(buf, "<tr><td>%s</td><td>%s</td><td>%s</td>", uname, fname, email);
 				send(client, buf, strlen(buf), 0);
-				sprintf(buf, "<td><button type=\"button\" class=\"btn\"><i class=\"fas fa-edit\"></i></button></td>");
+				sprintf(buf, "<td><a class=\"btn\" href=\"/edit?username=%s\" role=\"button\"><i class=\"fas fa-edit\"></i></a></td>", uname);
 				send(client, buf, strlen(buf), 0);
-				sprintf(buf, "<td><button type=\"button\" class=\"btn\"><i class=\"far fa-trash-alt\"></i></button></td></tr>");
+				sprintf(buf, "<td><a class=\"btn\" href=\"/delete?username=%s\" role=\"button\"><i class=\"far fa-trash-alt\"></i></a></td></tr>", uname);
 				send(client, buf, strlen(buf), 0);
 			}
 			fclose(f1);
@@ -364,6 +477,146 @@ int SendUserData(SOCKET client)
 			send(client, line, strlen(line), 0);
 	}
 	fclose(f);
+
+	return 0;
+}
+
+int ShowEditingUser(SOCKET client, char* editingUsername)
+{
+	char line[256];
+	char uname[16], fname[32], email[64], password[32];
+	int ret, found = 0;
+
+	// Get user's data
+	FILE* f1 = fopen("c:\\test\\users.txt", "r");
+	while (!feof(f1))
+	{
+		memset(line, 0, sizeof(line));
+		fgets(line, sizeof(line), f1);
+		ret = sscanf(line, "%s %s %s %s", uname, fname, email, password);
+		if (ret != 4)
+			continue;
+
+		if (strcmp(uname, editingUsername) == 0)
+		{
+			found = 1;
+			break;
+		}
+	}
+	fclose(f1);
+
+	if (!found)
+		return 0;
+
+	char path[1024] = "c:\\test\\web-content\\";
+	strcat(path, "edit.html");
+
+	FILE* f2 = fopen(path, "r");
+	while (!feof(f2))
+	{
+		memset(line, 0, sizeof(line));
+		fgets(line, sizeof(line), f2);
+		if (strstr(line, "[username]") != NULL)
+		{
+			sprintf(line, "\"%s\"", uname);
+			send(client, line, strlen(line), 0);
+		}
+		else if (strstr(line, "[fullname]") != NULL)
+		{
+			sprintf(line, "\"%s\"", fname);
+			send(client, line, strlen(line), 0);
+		}			
+		else if (strstr(line, "[email]") != NULL)
+		{
+			sprintf(line, "\"%s\"", email);
+			send(client, line, strlen(line), 0);
+		}			
+		else if (strstr(line, "[password]") != NULL)
+		{
+			sprintf(line, "\"%s\"", password);
+			send(client, line, strlen(line), 0);
+		}
+		else
+			send(client, line, strlen(line), 0);
+	}
+	fclose(f2);
+
+	return 0;
+}
+
+// Generate encrypted cookie from username
+char* SetCookie(char* username, char* cookie)
+{
+	char token[64];
+	MD5((unsigned char*)username, strlen(username), (unsigned char *)token);
+
+	for (int i = 0; i < 16; i++)
+		sprintf(&cookie[i * 2], "%02x", (unsigned int)token[i]);
+
+	// Save to file
+	FILE* f = fopen("C:\\Test\\sessions.txt", "a");
+	fseek(f, 0, SEEK_END);
+	fprintf(f, "%s %s\n", cookie, username);
+	fclose(f);
+
+	return cookie;
+}
+
+// Check cookie and return username
+char* CheckCookie(char* cookie) 
+{
+	FILE* f = fopen("C:\\Test\\sessions.txt", "r");
+	if (f == NULL)
+		return NULL;
+	
+	char line[256];
+	char token[64];
+	char username[32];
+	int ret, found = 0;
+
+	while (!feof(f))
+	{
+		fgets(line, sizeof(line), f);
+		ret = sscanf(line, "%s%s", token, username);
+		if (ret == 2)
+		{
+			if (strcmp(token, cookie) == 0)
+			{
+				found = 1;
+				break;
+			}
+		}
+	}
+
+	fclose(f);
+
+	if (found == 1)
+		return username;
+	else
+		return NULL;
+}
+
+int UpdateUserInfo(char* req)
+{
+	char* crlf = strstr(req, "\r\n\r\n");
+	if (crlf == NULL)
+		return -1;
+
+	char* username, * fullname, * email, * password;
+
+	char* pItem = strtok(crlf + 4, "&");
+	username = strstr(pItem, "=") + 1;
+
+	pItem = strtok(NULL, "&");
+	fullname = strstr(pItem, "=") + 1;
+
+	pItem = strtok(NULL, "&");
+	email = strstr(pItem, "=") + 1;
+
+	pItem = strtok(NULL, "&");
+	password = strstr(pItem, "=") + 1;
+
+	UpdateUser(username, fullname, email, password);
 
 	return 0;
 }
