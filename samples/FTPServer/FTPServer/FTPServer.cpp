@@ -593,8 +593,5 @@ char* GetPasswordOfUser(char* username)
 			return buf + strlen(username) + 1;
 		else
 			return 0;
-
-		 
-
 	}
 }
