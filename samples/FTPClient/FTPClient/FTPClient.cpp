@@ -20,6 +20,11 @@ void RenameFile();
 void RemoveFile();
 void Quit();
 
+void DownloadFolder();
+void DownloadFolderRecursively(char*, char*);
+void UploadFolder();
+void UploadFolderRecursively(char*, char*);
+
 SOCKET OpenServerDataSocket();
 
 void main()
@@ -40,6 +45,8 @@ void main()
 		printf("connect() failed.\n");
 		return;
 	}
+
+	Sleep(100);
 
 	char buf[256];
 	ret = recv(controlSocket, buf, sizeof(buf), 0);
@@ -76,6 +83,10 @@ void main()
 				RenameFile();
 			else if (cmd == 8)
 				RemoveFile();
+			else if (cmd == 9)
+				DownloadFolder();
+			else if (cmd == 10)
+				UploadFolder();
 		}
 	}
 
@@ -94,10 +105,12 @@ int GetCommand()
 	printf("6. Upload file\n");
 	printf("7. Doi ten file\n");
 	printf("8. Xoa file\n");
+	printf("9. Download folder\n");
+	printf("10. Upload folder\n");
 	printf("0. Thoat\n");
 
 	int cmd = -1;
-	while (cmd < 0 || cmd > 8)
+	while (cmd < 0 || cmd > 10)
 	{
 		printf("Chon chuc nang: ");
 		scanf("%d", &cmd);
@@ -214,16 +227,31 @@ void ListCurrentDirectory()
 	printf("%s\n", buf);
 	
 	// read data from data socket
+	char* dataBuf = NULL;
+	int currentSize = 0;
+
+	// read data from data socket
 	while (1)
 	{
 		ret = recv(dataSocket, buf, sizeof(buf), 0);
 		if (ret <= 0)
 			break;
-		if (ret < sizeof(buf))
-			buf[ret] = 0;
-		printf("%s\n", buf);
+		
+		if (currentSize == 0)
+			dataBuf = (char*)malloc(ret);
+		else
+			dataBuf = (char*)realloc(dataBuf, currentSize + ret);
+
+		memcpy(dataBuf + currentSize, buf, ret);
+		currentSize += ret;
 	}
 	closesocket(dataSocket);
+	
+	dataBuf = (char*)realloc(dataBuf, currentSize + 1);
+	dataBuf[currentSize] = 0;
+	printf("%s\n", dataBuf);
+
+	free(dataBuf);
 
 	ret = recv(controlSocket, buf, sizeof(buf), 0);
 	buf[ret] = 0;
@@ -402,6 +430,247 @@ void RemoveFile()
 	scanf("%s", filename);
 
 	sprintf(buf, "DELE %s\n", filename);
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+}
+
+void DownloadFolder()
+{
+	char parentPath[256] = "D:\\Test";
+	char folderName[32] = "hello";
+	DownloadFolderRecursively(parentPath, folderName);
+}
+
+void DownloadFolderRecursively(char* parentPath, char* folderName)
+{
+	char buf[256];
+	int ret;
+
+	// step 1: change to the folder
+	sprintf(buf, "CWD %s\n", folderName);
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+
+	// step 2: make folder on local
+	char fullPath[256];
+	sprintf(fullPath, "%s\\%s", parentPath, folderName);
+	CreateDirectoryA(fullPath, NULL);
+
+	// step 3: list folder on server
+	SOCKET dataSocket = OpenServerDataSocket();
+	if (dataSocket == INVALID_SOCKET)
+		return;
+
+	strcpy(buf, "TYPE A\n");
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+
+	strcpy(buf, "LIST\n");
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+
+	char* dataBuf = NULL;
+	int currentSize = 0;
+
+	// read data from data socket
+	while (1)
+	{
+		ret = recv(dataSocket, buf, sizeof(buf), 0);
+		if (ret <= 0)
+			break;
+		
+		if (currentSize == 0)
+			dataBuf = (char*)malloc(ret);
+		else
+			dataBuf = (char*)realloc(dataBuf, currentSize + ret);
+
+		memcpy(dataBuf + currentSize, buf, ret);
+		currentSize += ret;
+	}
+	closesocket(dataSocket);
+
+	dataBuf = (char*)realloc(dataBuf, currentSize + 1);
+	dataBuf[currentSize] = 0;
+
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+
+	// process the returned list of folders and files
+	char* p1 = dataBuf;
+	char* p2 = strstr(dataBuf, "\r\n");
+	while (p1[0] != 0)
+	{
+		if (p1[0] == 'd')
+		{
+			// step 4: repeat from step 1
+			char newParentPath[256];
+			sprintf(newParentPath, "%s\\%s", parentPath, folderName);
+
+			int nameLength = p2 - p1 - 49;
+			char* newFolderName = (char*)malloc(nameLength + 1);
+			memcpy(newFolderName, p1 + 49, nameLength);
+			newFolderName[nameLength] = 0;
+
+			DownloadFolderRecursively(newParentPath, newFolderName);
+
+			free(newFolderName);
+		}
+		else if (p1[0] == '-')
+		{
+			// step 5: download file
+			int nameLength = p2 - p1 - 49;
+			char* filename = (char*)malloc(nameLength + 1);
+			memcpy(filename, p1 + 49, nameLength);
+			filename[nameLength] = 0;
+
+			SOCKET dataSocket = OpenServerDataSocket();
+			if (dataSocket == INVALID_SOCKET)
+				return;
+
+			strcpy(buf, "TYPE I\n");
+			send(controlSocket, buf, strlen(buf), 0);
+			ret = recv(controlSocket, buf, sizeof(buf), 0);
+			buf[ret] = 0;
+			printf("%s\n", buf);
+
+			sprintf(buf, "RETR %s\n", filename);
+			send(controlSocket, buf, strlen(buf), 0);
+			ret = recv(controlSocket, buf, sizeof(buf), 0);
+			buf[ret] = 0;
+			printf("%s\n", buf);
+
+			sprintf(fullPath, "%s\\%s\\%s", parentPath, folderName, filename);
+			FILE* f = fopen(fullPath, "wb");
+
+			// read data from data socket
+			while (1)
+			{
+				ret = recv(dataSocket, buf, sizeof(buf), 0);
+				if (ret <= 0)
+					break;
+				fwrite(buf, 1, sizeof(buf), f);
+			}
+
+			closesocket(dataSocket);
+			fclose(f);
+
+			ret = recv(controlSocket, buf, sizeof(buf), 0);
+			buf[ret] = 0;
+			printf("%s\n", buf);
+
+			free(filename);
+		}
+		p1 = p2 + 2;
+		p2 = strstr(p1, "\r\n");
+	}
+
+	free(dataBuf);
+
+	// step 6: change to the parent folder
+	sprintf(buf, "CWD ..\n", folderName);
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+}
+
+void UploadFolder()
+{
+	char parentPath[256] = "D:\\Test";
+	char folderName[32] = "hello";
+	UploadFolderRecursively(parentPath, folderName);
+}
+
+void UploadFolderRecursively(char* parentPath, char* folderName)
+{
+	char buf[256];
+	int ret;
+
+	// step 1: make folder on server
+	sprintf(buf, "MKD %s\n", folderName);
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+
+	// step 2: change to the new folder
+	sprintf(buf, "CWD %s\n", folderName);
+	send(controlSocket, buf, strlen(buf), 0);
+	ret = recv(controlSocket, buf, sizeof(buf), 0);
+	buf[ret] = 0;
+	printf("%s\n", buf);
+
+	// step 3: list folder on local
+	char fullPath[256];
+	sprintf(fullPath, "%s\\%s\\*.*", parentPath, folderName);
+	WIN32_FIND_DATAA data;
+	HANDLE h = FindFirstFileA(fullPath, &data);
+	do
+	{
+		if (data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		{
+			if ((strcmp(data.cFileName, ".") == 0) || (strcmp(data.cFileName, "..") == 0))
+				continue;
+
+			// step 4: repeat from step 1
+			char newParentPath[256];
+			sprintf(newParentPath, "%s\\%s", parentPath, folderName);
+			UploadFolderRecursively(newParentPath, data.cFileName);
+		}
+		else
+		{
+			// step 5: upload file to server
+			SOCKET dataSocket = OpenServerDataSocket();
+			if (dataSocket == INVALID_SOCKET)
+				return;
+
+			char fbuf[2048];
+
+			strcpy(buf, "TYPE I\n");
+			send(controlSocket, buf, strlen(buf), 0);
+			ret = recv(controlSocket, buf, sizeof(buf), 0);
+			buf[ret] = 0;
+			printf("%s\n", buf);
+
+			sprintf(buf, "STOR %s\n", data.cFileName);
+			send(controlSocket, buf, strlen(buf), 0);
+			ret = recv(controlSocket, buf, sizeof(buf), 0);
+			buf[ret] = 0;
+			printf("%s\n", buf);
+
+			sprintf(fullPath, "%s\\%s\\%s", parentPath, folderName, data.cFileName);
+			FILE* f = fopen(fullPath, "rb");
+
+			// read data from file stream and send to data socket
+			while (!feof(f))
+			{
+				ret = fread(fbuf, 1, sizeof(fbuf), f);
+				if (ret <= 0)
+					break;
+				send(dataSocket, fbuf, ret, 0);
+			}
+
+			closesocket(dataSocket);
+			fclose(f);
+
+			ret = recv(controlSocket, buf, sizeof(buf), 0);
+			buf[ret] = 0;
+			printf("%s\n", buf);
+		}
+	} 
+	while (FindNextFileA(h, &data));
+
+	// step 6: change to the parent folder
+	sprintf(buf, "CWD ..\n", folderName);
 	send(controlSocket, buf, strlen(buf), 0);
 	ret = recv(controlSocket, buf, sizeof(buf), 0);
 	buf[ret] = 0;
