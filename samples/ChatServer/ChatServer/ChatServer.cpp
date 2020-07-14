@@ -37,7 +37,7 @@ int main()
 	SOCKADDR_IN addr;
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	addr.sin_port = htons(9000);
+	addr.sin_port = 80;
 
 	SOCKET listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	bind(listener, (SOCKADDR*)&addr, sizeof(addr));
