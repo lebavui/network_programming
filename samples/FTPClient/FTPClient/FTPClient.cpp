@@ -231,12 +231,20 @@ void ListCurrentDirectory()
 	int currentSize = 0;
 
 	// read data from data socket
+	char* dataBuf = NULL;
+	int currentSize = 0;
+
+	// read data from data socket
 	while (1)
 	{
 		ret = recv(dataSocket, buf, sizeof(buf), 0);
 		if (ret <= 0)
 			break;
+<<<<<<< HEAD
 
+=======
+		
+>>>>>>> 37d67b1bbf154d3e78842371e0623ef1e00c9dd6
 		if (currentSize == 0)
 			dataBuf = (char*)malloc(ret);
 		else
@@ -246,6 +254,12 @@ void ListCurrentDirectory()
 		currentSize += ret;
 	}
 	closesocket(dataSocket);
+	
+	dataBuf = (char*)realloc(dataBuf, currentSize + 1);
+	dataBuf[currentSize] = 0;
+	printf("%s\n", dataBuf);
+
+	free(dataBuf);
 
 	dataBuf = (char*)realloc(dataBuf, currentSize + 1);
 	dataBuf[currentSize] = 0;
@@ -438,7 +452,11 @@ void RemoveFile()
 
 void DownloadFolder()
 {
+<<<<<<< HEAD
 	char parentPath[256] = "C:\\Test";
+=======
+	char parentPath[256] = "D:\\Test";
+>>>>>>> 37d67b1bbf154d3e78842371e0623ef1e00c9dd6
 	char folderName[32] = "hello";
 	DownloadFolderRecursively(parentPath, folderName);
 }
@@ -486,7 +504,11 @@ void DownloadFolderRecursively(char* parentPath, char* folderName)
 		ret = recv(dataSocket, buf, sizeof(buf), 0);
 		if (ret <= 0)
 			break;
+<<<<<<< HEAD
 
+=======
+		
+>>>>>>> 37d67b1bbf154d3e78842371e0623ef1e00c9dd6
 		if (currentSize == 0)
 			dataBuf = (char*)malloc(ret);
 		else
@@ -585,7 +607,11 @@ void DownloadFolderRecursively(char* parentPath, char* folderName)
 
 void UploadFolder()
 {
+<<<<<<< HEAD
 	char parentPath[256] = "C:\\Test";
+=======
+	char parentPath[256] = "D:\\Test";
+>>>>>>> 37d67b1bbf154d3e78842371e0623ef1e00c9dd6
 	char folderName[32] = "hello";
 	UploadFolderRecursively(parentPath, folderName);
 }
@@ -666,7 +692,12 @@ void UploadFolderRecursively(char* parentPath, char* folderName)
 			buf[ret] = 0;
 			printf("%s\n", buf);
 		}
+<<<<<<< HEAD
 	} while (FindNextFileA(h, &data));
+=======
+	} 
+	while (FindNextFileA(h, &data));
+>>>>>>> 37d67b1bbf154d3e78842371e0623ef1e00c9dd6
 
 	// step 6: change to the parent folder
 	sprintf(buf, "CWD ..\n", folderName);
