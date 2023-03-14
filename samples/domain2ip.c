@@ -9,7 +9,7 @@ int main(int argc, char* argv[]) {
     
     struct addrinfo *res, *p;
     int ret = getaddrinfo(argv[1], "http", NULL, &res);
-    if (ret == -1)
+    if (ret == -1 || res == NULL)
     {
         printf("Failed to get IP\n");
         return 1;

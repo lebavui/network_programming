@@ -36,7 +36,7 @@ int main()
         printf("listen() failed.\n");
         exit(1);
     }
-    
+
     printf("Waiting for a new client ...\n");
 
     // Chap nhan ket noi
