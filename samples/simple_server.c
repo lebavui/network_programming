@@ -5,67 +5,71 @@
 #include <unistd.h>
 #include <netdb.h>
 #include <string.h>
+#include <errno.h>
 
 int main() 
 {
-    // Tao socket
+    // Tạo socket chờ kết nối
     int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     if (listener != -1)
-        printf("Socket created: %d\n", listener);
+        printf("socket created: %d\n", listener);
     else
     {
-        printf("Failed to create socket.\n");
+        perror("socket() failed");
         exit(1);
     }
 
-    // Khai bao cau truc dia chi server
+    // Khai báo cấu trúc địa chỉ của server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(9000);
 
-    // Gan dia chi voi socket
+    // Gắn socket với cấu trúc địa chỉ
     if (bind(listener, (struct sockaddr *)&addr, sizeof(addr))) 
     {
-        printf("bind() failed.\n");
+        perror("bind() failed");
         exit(1);
     }
 
+    // Chuyển socket sang trạng thái chờ kết nối
     if (listen(listener, 5)) 
     {
-        printf("listen() failed.\n");
+        perror("listen() failed");
         exit(1);
     }
 
-    printf("Waiting for a new client ...\n");
+    printf("waiting for a new client ...\n");
 
-    // Chap nhan ket noi
+    // Chờ và chấp nhận kết nối
     int client = accept(listener, NULL, NULL);
     if (client == -1)
     {
-        printf("accept() failed.\n");
+        perror("accept() failed");
         exit(1);
     }
-    printf("New client connected: %d\n", client);
+    printf("new client connected: %d\n", client);
 
-    // Nhan du lieu tu client
+    // Nhận dữ liệu từ client
     char buf[256];
     int ret = recv(client, buf, sizeof(buf), 0);
+
+    // Kiểm tra kết nối có bị đóng hoặc hủy không
     if (ret <= 0)
     {
         printf("recv() failed.\n");
         exit(1);
     }
 
-    // Them ky tu ket thuc xau va in ra man hinh
+    // Thêm ký tự kết thúc xâu và in ra màn hình
     if (ret < sizeof(buf))
-    buf[ret] = 0;
+        buf[ret] = 0;
     puts(buf);
 
-    // Gui du lieu sang client
+    // Gửi dữ liệu sang client
     send(client, buf, strlen(buf), 0);
     
-    // Dong ket noi
+    // Đóng kết nối
     close(client);
     close(listener);    
 
