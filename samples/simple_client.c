@@ -31,13 +31,18 @@ int main() {
     // Nhận tin nhắn từ server
     char buf[2048];
     int len = recv(client, buf, sizeof(buf), 0);
+
+    // Nếu kết nối bị đóng hoặc bị lỗi thì kết thúc chương trình
     if (len <= 0)
     {
         printf("recv() failed.\n");
-        exit(1);
+        return 1;
     }
 
-    buf[len] = 0;
+    // Xử lý dữ liệu nhận được
+    // Thêm ký tự kết thúc xâu và in ra màn hình
+    if (len < sizeof(buf))
+        buf[len] = 0;
     printf("Data received: %s\n", buf);
 
     // Kết thúc, đóng socket

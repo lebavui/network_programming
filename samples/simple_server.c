@@ -11,12 +11,10 @@ int main()
 {
     // Tạo socket chờ kết nối
     int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener != -1)
-        printf("socket created: %d\n", listener);
-    else
+    if (listener == -1)
     {
         perror("socket() failed");
-        exit(1);
+        return 1;
     }
 
     // Khai báo cấu trúc địa chỉ của server
@@ -29,14 +27,14 @@ int main()
     if (bind(listener, (struct sockaddr *)&addr, sizeof(addr))) 
     {
         perror("bind() failed");
-        exit(1);
+        return 1;
     }
 
     // Chuyển socket sang trạng thái chờ kết nối
     if (listen(listener, 5)) 
     {
         perror("listen() failed");
-        exit(1);
+        return 1;
     }
 
     printf("waiting for a new client ...\n");
@@ -46,7 +44,7 @@ int main()
     if (client == -1)
     {
         perror("accept() failed");
-        exit(1);
+        return 1;
     }
     printf("new client connected: %d\n", client);
 
@@ -58,7 +56,7 @@ int main()
     if (ret <= 0)
     {
         printf("recv() failed.\n");
-        exit(1);
+        return 1;
     }
 
     // Thêm ký tự kết thúc xâu và in ra màn hình
