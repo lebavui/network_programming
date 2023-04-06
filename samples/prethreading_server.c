@@ -10,24 +10,23 @@ void* thread_proc(void *arg);
 
 int main() 
 {
-    // Tao socket
+    // Tạo socket chờ kết nối
     int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener != -1)
-        printf("Socket created: %d\n", listener);
-
-    // Khai bao cau truc dia chi server
+    
+    // Khai báo cấu trúc địa chỉ server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(9000);
 
-    // Gan dia chi voi socket
+    // Gắn địa chỉ với socket
     bind(listener, (struct sockaddr *)&addr, sizeof(addr));
     listen(listener, 5);
 
     int num_threads = 8;
     pthread_t thread_id;
 
+    // Tạo trước các luồng
     for (int i = 0; i < num_threads; i++)
     {
         int ret = pthread_create(&thread_id, NULL, thread_proc, &listener);
@@ -36,6 +35,7 @@ int main()
         sched_yield();
     }
     
+    // Đợi vô thời hạn, đảm bảo chương trình tiếp tục hoạt động
     pthread_join(thread_id, NULL);
     return 0;
 }

@@ -9,24 +9,23 @@
 
 int main() 
 {
-    // Tao socket
+    // Tạo socket
     int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener != -1)
-        printf("Socket created: %d\n", listener);
-
-    // Khai bao cau truc dia chi server
+    
+    // Khai báo cấu trúc địa chỉ server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(9000);
 
-    // Gan dia chi voi socket
+    // Gắn địa chỉ với socket
     bind(listener, (struct sockaddr *)&addr, sizeof(addr));
     listen(listener, 5);
 
     int num_processes = 8;
     char buf[256];
 
+    // Tạo trước các tiến trình, mỗi tiến trình lặp lại công việc chấp nhận kết nối và xử lý yêu cầu của client
     for (int i = 0; i < num_processes; i++)
         if (fork() == 0)
             while(1)
@@ -49,6 +48,7 @@ int main()
                 close(client);
             }
 
+    // Đợi vô thời hạn, đảm bảo chương trình tiếp tục hoạt động
     wait(NULL);
 
     return 0;
