@@ -8,16 +8,16 @@
 #include <sys/signal.h>
 
 int main() {
-    // Khai bao socket
+    // Khai báo socket
     int client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    // Khai bao dia chi cua server
+    // Khai báo địa chỉ của server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(9000); 
 
-    // Ket noi den server
+    // Kết nối đến server
     int res = connect(client, (struct sockaddr *)&addr, sizeof(addr));
     if (res == -1) {
         printf("Khong ket noi duoc den server!\n");
@@ -26,10 +26,11 @@ int main() {
         
     char buf[256];
 
+    // Tạo tiến trình mới
     int cid = fork();
     if (cid == 0)
     {
-        // Tiến trình con
+        // Tiến trình con, nhận dữ liệu từ bàn phím
         while (1)
         {
             fgets(buf, sizeof(buf), stdin);
@@ -40,7 +41,7 @@ int main() {
     }
     else
     {
-        // Tiến trình cha
+        // Tiến trình cha, nhận dữ liệu từ socket
         while (1)
         {
             int ret = recv(client, buf, sizeof(buf), 0);
@@ -51,7 +52,7 @@ int main() {
         }
     }
 
-    // Ket thuc, dong socket
+    // Kết thúc, đóng socket
     close(client);
 
     // Dừng các tiến trình

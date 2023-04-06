@@ -8,6 +8,7 @@
 #include <sys/signal.h>
 #include <sys/wait.h>
 
+// Hàm xử lý tín hiệu SIGCHLD
 void signalHandler(int signo) 
 {
     pid_t pid;
@@ -20,23 +21,28 @@ void signalHandler(int signo)
 
 int main() 
 {
-    // Tao socket
-    int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener != -1)
-        printf("Socket created: %d\n", listener);
+    // Hiển thị số tiến trình tối đa có thể tạo
+    // struct rlimit lim;
+    // getrlimit(RLIMIT_NPROC, &lim);
+    // printf("Soft limit: %ld\n", lim.rlim_cur);
+    // printf("Hard limit: %ld\n", lim.rlim_max);
 
-    // Khai bao cau truc dia chi server
+    // Tạo socket chờ kết nối
+    int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    
+    // Khai báo cấu trúc địa chỉ của server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(9000);
 
-    // Gan dia chi voi socket
+    // Gắn địa chỉ với socket và chuyển sang chờ kết nối
     bind(listener, (struct sockaddr *)&addr, sizeof(addr));
     listen(listener, 5);
 
     pid_t pid;
 
+    // Đăng ký xử lý tín hiệu SIGCHLD
     signal(SIGCHLD, signalHandler);
 
     while (1)
@@ -44,11 +50,16 @@ int main()
         printf("Waiting for new client\n");
         int client = accept(listener, NULL, NULL);
         printf("New client accepted: %d\n", client);
+
+        // Tạo tiến trình cho kết nối mới
         if ((pid = fork()) == 0)
         {
-            // in child process
+            // Trong tiến trình con
+
+            // Đóng socket listener vì không dùng đến
             close(listener);
 
+            // Nhận và xử lý dữ liệu
             char buf[256];
             while (1)
             {
@@ -60,9 +71,14 @@ int main()
                 send(client, buf, strlen(buf), 0);
             }
             
+            // Đóng kết nối
             close(client);
+
+            // Kết thúc tiến trình con
             exit(0);
         }
+
+        // Trong tiến trình cha, đóng socket client do không dùng đến
         close(client);
     }
 

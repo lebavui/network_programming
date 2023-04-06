@@ -11,31 +11,36 @@ void* thread_proc(void *arg);
 
 int main() 
 {
-    // Tao socket
+    // Tạo socket kết nối đến server
     int client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
     
-    // Khai bao cau truc dia chi server
+    // Khai báo cấu trúc địa chỉ server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(9000);
 
+    // Kết nối đến server
     if (connect(client, (struct sockaddr *)&addr, sizeof(addr)))
     {
         printf("Khong the ket noi den server.\n");
         return 1;
     }
 
+    // Tạo luồng mới
     pthread_t thread_id;
     if (pthread_create(&thread_id, NULL, thread_proc, (void *)&client))
     {
         printf("Khong the tao luong!\n");
         return 1;   
     }
+
+    // Chuyển luồng sang chế độ tự giải phóng
     pthread_detach(thread_id);
     
     char buf[256];
 
+    // Trong luồng chính, chờ dữ liệu từ bàn phím
     while (1)
     {
         fgets(buf, sizeof(buf), stdin);
@@ -50,6 +55,8 @@ int main()
 
 void* thread_proc(void *arg)
 {
+    // Trong luồng con, chờ dữ liệu từ socket
+    
     printf("child thread created.\n");
     int client = *(int *)arg;
     char buf[256];

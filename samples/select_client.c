@@ -7,35 +7,36 @@
 #include <arpa/inet.h>
 
 int main() {
-    // Khai bao socket
+    // Khai báo socket client
     int client = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
-    // Khai bao dia chi cua server
+    // Khai báo địa chỉ server
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = inet_addr("127.0.0.1");
     addr.sin_port = htons(9000); 
 
-    // Ket noi den server
+    // Thực hiện kết nối đến server
     int res = connect(client, (struct sockaddr *)&addr, sizeof(addr));
     if (res == -1) {
         printf("Khong ket noi duoc den server!\n");
         return 1;
     }
-     
+    
+    // Khai báo tập fdset
     fd_set fdread;
     char buf[256];
 
     while (1)
     {
-        // Khoi tao tap fdread
+        // Khởi tạo lại tập fdread
         FD_ZERO(&fdread);
 
-        // Gan cac descriptor vao tap fdread
+        // Gắn các descriptor vào tập fdread
         FD_SET(STDIN_FILENO, &fdread);
         FD_SET(client, &fdread);
         
-        // Cho su kien xay ra
+        // Chờ đến khi sự kiện xảy ra
         int ret = select(client + 1, &fdread, NULL, NULL, NULL);
         if (ret == -1)
         {
@@ -43,7 +44,7 @@ int main() {
             break;
         }
         
-        // Kiem tra su kien co du lieu tu ban phim
+        // Kiểm tra sự kiện có dữ liệu từ bàn phím
         if (FD_ISSET(STDIN_FILENO, &fdread))
         {
             fgets(buf, sizeof(buf), stdin);
@@ -54,7 +55,7 @@ int main() {
                 break;
         }
 
-        // Kiem tra su kien co du lieu tu socket
+        // Kiểm tra sự kiện có dữ liệu truyền đến qua socket
         if (FD_ISSET(client, &fdread))
         {
             ret = recv(client, buf, sizeof(buf), 0);
@@ -68,7 +69,7 @@ int main() {
         }
     }
 
-    // Ket thuc, dong socket
+    // Kết thúc, đóng socket
     close(client);
 
     return 0;

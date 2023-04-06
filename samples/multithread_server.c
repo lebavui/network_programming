@@ -5,26 +5,28 @@
 #include <netdb.h>
 #include <string.h>
 #include <pthread.h>
+#include <sys/resource.h>
 
 void* thread_proc(void *arg);
 
-int clients[64];
-int numClients = 0;
-
 int main() 
 {
-    // Tao socket
-    int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (listener != -1)
-        printf("Socket created: %d\n", listener);
+    // Hiển thị số luồng tối đa có thể tạo
+    // struct rlimit lim;
+    // getrlimit(RLIMIT_NPROC, &lim);
+    // printf("Soft limit: %ld\n", lim.rlim_cur);
+    // printf("Hard limit: %ld\n", lim.rlim_max);
 
-    // Khai bao cau truc dia chi server
+    // Tạo socket chờ kết nối
+    int listener = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    
+    // Khai báo cấu trúc địa chỉ server chờ ở cổng 9000
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(9000);
 
-    // Gan dia chi voi socket
+    // Gắn địa chỉ với socket và chuyển sang trạng thái chờ kết nối
     bind(listener, (struct sockaddr *)&addr, sizeof(addr));
     listen(listener, 5);
 
@@ -33,20 +35,22 @@ int main()
     while (1)
     {
         printf("Waiting for new client ...\n");
-        // Chap nhan ket noi
+        // Chấp nhận kết nối mới
         int client = accept(listener, NULL, NULL);
         if (client == -1)
             continue;
         printf("New client connected: %d\n", client);
-        clients[numClients++] = client;
     
+        // Tạo luồng để xử lý yêu cầu từ client
         int ret = pthread_create(&thread_id, NULL, thread_proc, (void *)&client);
         if (ret != 0) 
         {
             printf("Could not create thread!\n");   
         }
 
+        // Yêu cầu luồng tự giải phóng khi kết thúc
         pthread_detach(thread_id);
+        // Ưu tiên luồng mới tạo bắt đầu chạy
         sched_yield();
     }
 
@@ -55,6 +59,8 @@ int main()
 
 void* thread_proc(void *arg)
 {
+    // Luồng xử lý yêu cầu từ client
+
     printf("child thread created.\n");
     int client = *(int *)arg;
     char buf[2048];
@@ -65,11 +71,6 @@ void* thread_proc(void *arg)
             break;
         buf[len] = 0;
         printf("%s", buf);
-
-        // send this message to other clients
-        for (int i = 0; i < numClients; i++)
-            if (clients[i] != client)
-                send(clients[i], buf, strlen(buf), 0);
     }
     close(client);
     printf("child thread finished.\n");
